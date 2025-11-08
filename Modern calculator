@@ -1,0 +1,265 @@
+ # Advanced Intelligent Calculator App for Secondary and University Students
+# This Python app uses Tkinter for the GUI and SymPy for symbolic math capabilities.
+# Features:
+# - Basic arithmetic operations
+# - Scientific functions (sin, cos, tan, log, exp, etc.)
+# - Equation solving (algebraic and calculus)
+# - Step-by-step solutions for equations
+# - Unit conversions (basic: length, weight, temperature)
+# - Plotting simple functions (using Matplotlib)
+# - Educational mode: Explains steps for common operations
+#
+# Requirements: Install tkinter (built-in), sympy, matplotlib via pip if not present.
+# Run with: python calculator_app.py
+
+import tkinter as tk
+from tkinter import ttk, messagebox, scrolledtext
+import sympy as sp
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import numpy as np
+from math import radians  # For degree to radian conversion
+
+class IntelligentCalculator:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Smart Calculator for Students")
+        self.root.geometry("800x600")
+        
+        # Variables
+        self.current_expression = tk.StringVar()
+        self.result_var = tk.StringVar()
+        self.equation_var = tk.StringVar()
+        self.variable_var = tk.StringVar(value='x')  # Default variable for solving
+        self.plot_var = tk.StringVar()
+        
+        # Create notebook for tabs
+        self.notebook = ttk.Notebook(root)
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Tab 1: Basic/Scientific Calculator
+        self.basic_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.basic_frame, text="Calculator")
+        self.setup_calculator_tab()
+        
+        # Tab 2: Equation Solver
+        self.solver_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.solver_frame, text="Equation Solver")
+        self.setup_solver_tab()
+        
+        # Tab 3: Unit Converter
+        self.converter_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.converter_frame, text="Unit Converter")
+        self.setup_converter_tab()
+        
+        # Tab 4: Plotter
+        self.plot_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.plot_frame, text="Function Plotter")
+        self.setup_plotter_tab()
+        
+        # Tab 5: Educational Help
+        self.help_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.help_frame, text="Help & Steps")
+        self.setup_help_tab()
+
+    def setup_calculator_tab(self):
+        # Display
+        display = tk.Entry(self.basic_frame, textvariable=self.current_expression, font=('Arial', 16), justify='right', state='readonly')
+        display.grid(row=0, column=0, columnspan=5, sticky='ew', padx=5, pady=5)
+        
+        # Buttons
+        buttons = [
+            ('C', 1, 0), ('±', 1, 1), ('%', 1, 2), ('÷', 1, 3),
+            ('7', 2, 0), ('8', 2, 1), ('9', 2, 2), ('×', 2, 3),
+            ('4', 3, 0), ('5', 3, 1), ('6', 3, 2), ('-', 3, 3),
+            ('1', 4, 0), ('2', 4, 1), ('3', 4, 2), ('+', 4, 3),
+            ('0', 5, 0), ('.', 5, 2), ('=', 5, 3)
+        ]
+        
+        for (text, row, col) in buttons:
+            if text == '=':
+                btn = tk.Button(self.basic_frame, text=text, command=self.calculate, font=('Arial', 12), bg='lightblue')
+            else:
+                btn = tk.Button(self.basic_frame, text=text, command=lambda t=text: self.append_to_expression(t), font=('Arial', 12))
+            btn.grid(row=row, column=col, sticky='nsew', padx=2, pady=2)
+        
+        # Scientific buttons
+        sci_buttons = [
+            ('sin', 1, 4), ('cos', 2, 4), ('tan', 3, 4),
+            ('log', 4, 4), ('exp', 5, 4), ('√', 6, 4),
+            ('π', 1, 5), ('e', 2, 5), ('(', 3, 5), (')', 4, 5)
+        ]
+        
+        for i, (text, row, col) in enumerate(sci_buttons):
+            btn = tk.Button(self.basic_frame, text=text, command=lambda t=text: self.append_to_expression(t), font=('Arial', 10))
+            btn.grid(row=row, column=col, sticky='nsew', padx=2, pady=2)
+        
+        # Configure grid weights
+        for i in range(6):
+            self.basic_frame.grid_columnconfigure(i, weight=1)
+        for i in range(7):
+            self.basic_frame.grid_rowconfigure(i, weight=1)
+        
+        # Result label
+        result_label = tk.Label(self.basic_frame, textvariable=self.result_var, font=('Arial', 14), fg='green')
+        result_label.grid(row=6, column=0, columnspan=6, sticky='ew', pady=5)
+
+    def setup_solver_tab(self):
+        tk.Label(self.solver_frame, text="Equation (e.g., x**2 - 5*x + 6 = 0):").pack(pady=5)
+        eq_entry = tk.Entry(self.solver_frame, textvariable=self.equation_var, width=50)
+        eq_entry.pack(pady=5)
+        
+        tk.Label(self.solver_frame, text="Variable:").pack()
+        var_entry = tk.Entry(self.solver_frame, textvariable=self.variable_var, width=10)
+        var_entry.pack(pady=5)
+        
+        solve_btn = tk.Button(self.solver_frame, text="Solve", command=self.solve_equation)
+        solve_btn.pack(pady=5)
+        
+        steps_text = scrolledtext.ScrolledText(self.solver_frame, height=15, width=70)
+        steps_text.pack(pady=10, fill=tk.BOTH, expand=True)
+
+    def setup_converter_tab(self):
+        tk.Label(self.converter_frame, text="From Unit:").grid(row=0, column=0, padx=10, pady=5)
+        self.from_unit = ttk.Combobox(self.converter_frame, values=['m', 'kg', 'C', 'ft', 'lb', 'F'])
+        self.from_unit.grid(row=0, column=1)
+        self.from_value = tk.Entry(self.converter_frame, width=10)
+        self.from_value.grid(row=0, column=2)
+        
+        tk.Label(self.converter_frame, text="To Unit:").grid(row=1, column=0, padx=10, pady=5)
+        self.to_unit = ttk.Combobox(self.converter_frame, values=['ft', 'lb', 'F', 'm', 'kg', 'C'])
+        self.to_unit.grid(row=1, column=1)
+        convert_btn = tk.Button(self.converter_frame, text="Convert", command=self.convert_units)
+        convert_btn.grid(row=1, column=2, pady=5)
+        
+        result_label = tk.Label(self.converter_frame, text="", font=('Arial', 14), fg='blue')
+        result_label.grid(row=2, column=0, columnspan=3, pady=10)
+
+    def setup_plotter_tab(self):
+        tk.Label(self.plot_frame, text="Function (e.g., sin(x)):").pack(pady=5)
+        plot_entry = tk.Entry(self.plot_frame, textvariable=self.plot_var, width=50)
+        plot_entry.pack(pady=5)
+        
+        plot_btn = tk.Button(self.plot_frame, text="Plot", command=self.plot_function)
+        plot_btn.pack(pady=5)
+        
+        # Matplotlib figure
+        self.fig, self.ax = plt.subplots(figsize=(8, 4))
+        self.canvas = FigureCanvasTkAgg(self.fig, self.plot_frame)
+        self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+    def setup_help_tab(self):
+        help_text = scrolledtext.ScrolledText(self.help_frame, height=20, width=80)
+        help_text.pack(pady=10, fill=tk.BOTH, expand=True)
+        help_content = """
+Educational Help & Step-by-Step Guides
+
+1. Basic Arithmetic:
+   - Addition: 2 + 3 = 5 (Step: Align numbers, add column-wise)
+   - Multiplication: 4 × 5 = 20 (Step: Repeated addition or grid method)
+
+2. Scientific Functions:
+   - sin(x): Sine of angle x in radians. Convert degrees: sin(90°) = sin(π/2) = 1
+   - Solve Trig: Use identities like sin²θ + cos²θ = 1
+
+3. Algebra Solving:
+   - For quadratic ax² + bx + c = 0: x = [-b ± √(b² - 4ac)] / (2a)
+   - Steps shown in solver tab.
+
+4. Calculus Basics:
+   - Derivative of x²: 2x (Power rule: d/dx [x^n] = n x^{n-1})
+   - Integral of x: (1/2)x² + C
+
+5. Unit Conversion Examples:
+   - Length: 1 m ≈ 3.281 ft
+   - Temperature: C to F: F = (C × 9/5) + 32
+
+For more, ask your teacher or use online resources!
+        """
+        help_text.insert(tk.END, help_content)
+        help_text.config(state=tk.DISABLED)
+
+    # Calculator methods
+    def append_to_expression(self, value):
+        current = self.current_expression.get()
+        if current == 'Error':
+            current = ''
+        self.current_expression.set(current + str(value))
+
+    def calculate(self):
+        try:
+            expr = self.current_expression.get()
+            # Handle scientific functions
+            expr = expr.replace('π', 'pi').replace('e', 'exp(1)')
+            if 'sin' in expr:
+                expr = expr.replace('sin', 'sin(radians(') + '))' if expr.count('sin') == 1 else expr  # Simple handling
+            # More robust: Use sympy for evaluation
+            x = sp.symbols('x')
+            result = sp.sympify(expr).evalf()
+            self.result_var.set(str(result))
+            self.current_expression.set(str(result))
+        except Exception as e:
+            self.result_var.set('Error')
+            self.current_expression.set('Error')
+
+    # Solver methods
+    def solve_equation(self):
+        try:
+            eq_str = self.equation_var.get()
+            var = sp.symbols(self.variable_var.get())
+            eq = sp.Eq(sp.sympify(eq_str.split('=')[0]), sp.sympify(eq_str.split('=')[1]))
+            solutions = sp.solve(eq, var)
+            
+            steps_text = self.solver_frame.winfo_children()[-1]  # ScrolledText
+            steps_text.delete(1.0, tk.END)
+            steps_text.insert(tk.END, f"Solutions: {solutions}\n\n")
+            
+            # Step-by-step for quadratic example
+            if 'x**2' in eq_str:
+                steps_text.insert(tk.END, "Step-by-Step (Quadratic Formula):\n")
+                steps_text.insert(tk.END, "1. Identify a, b, c: ax² + bx + c = 0\n")
+                steps_text.insert(tk.END, "2. Discriminant D = b² - 4ac\n")
+                steps_text.insert(tk.END, "3. x = [-b ± √D] / (2a)\n")
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+    # Converter methods
+    def convert_units(self):
+        try:
+            value = float(self.from_value.get())
+            from_u = self.from_unit.get()
+            to_u = self.to_unit.get()
+            
+            conversions = {
+                ('m', 'ft'): value * 3.28084,
+                ('ft', 'm'): value / 3.28084,
+                ('kg', 'lb'): value * 2.20462,
+                ('lb', 'kg'): value / 2.20462,
+                ('C', 'F'): (value * 9/5) + 32,
+                ('F', 'C'): (value - 32) * 5/9,
+            }
+            
+            result = conversions.get((from_u, to_u), 'Unsupported')
+            self.converter_frame.winfo_children()[5].config(text=f"Result: {result}")  # Update label
+        except ValueError:
+            messagebox.showerror("Error", "Enter a valid number!")
+
+    # Plotter methods
+    def plot_function(self):
+        try:
+            func_str = self.plot_var.get()
+            x = np.linspace(-10, 10, 400)
+            y = eval(func_str, {'x': x, 'np': np, 'sin': np.sin, 'cos': np.cos, 'tan': np.tan})
+            
+            self.ax.clear()
+            self.ax.plot(x, y)
+            self.ax.set_title(f"Plot of {func_str}")
+            self.ax.grid(True)
+            self.canvas.draw()
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = IntelligentCalculator(root)
+    root.mainloop()
